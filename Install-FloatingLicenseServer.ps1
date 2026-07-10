@@ -274,17 +274,10 @@ while (-not ($licSourceFile -and $datSourceFile)) {
     $datSourceFile = $tryDat
 }
 
-# Validate license.al content
-$licContent = Get-Content -Path $licSourceFile -Raw -ErrorAction Stop
-if ($licContent -notmatch '(?im)^SERVER\s+') {
-    Write-Fail "$FLM_LICENSE_FILE does not appear to be a valid license file (missing SERVER line)."
-    Write-Host "    Please contact TechSoft3D support: spinfiresupport@techsoft3d.com" -ForegroundColor Yellow
-    Read-Host "`nPress Enter to exit"
-    try { Stop-Transcript | Out-Null } catch {}
-    exit 1
-}
-if ($licContent -notmatch '(?im)^VENDOR\s+') {
-    Write-Fail "$FLM_LICENSE_FILE does not appear to be a valid license file (missing VENDOR line)."
+# Validate sfpflv2.dat content (this is the file with the SERVER line)
+$datValidation = Get-Content -Path $datSourceFile -Raw -ErrorAction Stop
+if ($datValidation -notmatch '(?im)^SERVER\s+') {
+    Write-Fail "$FLM_DATA_FILE does not appear to be a valid license file (missing SERVER line)."
     Write-Host "    Please contact TechSoft3D support: spinfiresupport@techsoft3d.com" -ForegroundColor Yellow
     Read-Host "`nPress Enter to exit"
     try { Stop-Transcript | Out-Null } catch {}
