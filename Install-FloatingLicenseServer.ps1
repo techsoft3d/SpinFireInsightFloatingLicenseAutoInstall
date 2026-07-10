@@ -73,6 +73,8 @@ $FLM_VENDOR_DAEMON  = 'spinfired.exe'
 
 # Candidate install paths (checked in order)
 $FLM_CANDIDATE_DIRS = @(
+    'C:\Program Files\Tech Soft 3D\Floating License Manager',
+    'C:\Program Files (x86)\Tech Soft 3D\Floating License Manager',
     'C:\Program Files\TECHSOFT3D\SpinFire Floating License Server',
     'C:\Program Files (x86)\TECHSOFT3D\SpinFire Floating License Server',
     'C:\Program Files\Actify\FLM',
@@ -95,7 +97,10 @@ function Find-FLMInstallDir {
         if (-not (Test-Path $base)) { continue }
         Get-ChildItem $base -ErrorAction SilentlyContinue | ForEach-Object {
             $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
-            if ($props.DisplayName -like '*SpinFire*License*' -or $props.DisplayName -like '*Actify*FLM*') {
+            if ($props.DisplayName -like '*SpinFire*License*' -or
+                $props.DisplayName -like '*Floating License Manager*' -or
+                $props.DisplayName -like '*Tech Soft 3D*' -or
+                $props.DisplayName -like '*Actify*FLM*') {
                 $loc = $props.InstallLocation
                 if ($loc -and (Test-Path (Join-Path $loc $FLM_LMGRD))) {
                     return $loc.TrimEnd('\')
@@ -109,6 +114,13 @@ function Find-FLMInstallDir {
         if (Test-Path (Join-Path $dir $FLM_LMGRD)) {
             return $dir
         }
+    }
+
+    # 3. Last resort: search Program Files for lmgrd.exe
+    foreach ($root in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+        if (-not $root) { continue }
+        $found = Get-ChildItem -Path $root -Filter 'lmgrd.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($found) { return $found.DirectoryName }
     }
 
     return $null

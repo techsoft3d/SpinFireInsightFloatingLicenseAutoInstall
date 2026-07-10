@@ -19,10 +19,11 @@ A PowerShell-based automated installer that configures a SpinFire Insight Floati
 This is the **Floating License Manager (FLM) installer** — NOT SpinFire Insight. It installs:
 - `lmgrd.exe` — license manager daemon
 - `spinfired.exe` — SpinFire vendor daemon
-- `lmtools.exe` — GUI management utility
-- `lmutil.exe` — command-line utility
+- `lmtools.exe` -- GUI management utility
+- `lmutil.exe` -- command-line utility
 
 Download URL: `https://downloads.spinfire.com/FloatingLicenseServer/SpinFireFloatingLicenseServer.x64.exe`
+Confirmed install directory (from test): `C:\Program Files\Tech Soft 3D\Floating License Manager\`
 
 ---
 
