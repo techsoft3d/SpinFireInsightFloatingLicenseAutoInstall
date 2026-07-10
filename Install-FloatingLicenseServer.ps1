@@ -428,31 +428,49 @@ try {
 # -- STEP 7: START THE SERVICE -------------------------------------------------
 Write-Step "Starting service '$FLM_SERVICE_NAME'..."
 
-# Kill any orphaned lmgrd/spinfired processes before starting - a leftover process
-# from a previous run will cause lmgrd to detect a conflict and exit immediately.
-foreach ($procName in @('lmgrd', 'spinfired')) {
-    $running = Get-Process -Name $procName -ErrorAction SilentlyContinue
-    if ($running) {
-        Write-Warn "Found running $procName.exe from a previous session - stopping it..."
-        $running | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
-        Write-OK "Stopped orphaned $procName.exe."
+# Only kill orphaned processes if the service is not already running.
+# If it IS running (re-run scenario), killing would disrupt active license checkouts.
+$preStartStatus = (Get-Service -Name $FLM_SERVICE_NAME -ErrorAction SilentlyContinue).Status
+if ($preStartStatus -ne 'Running') {
+    foreach ($procName in @('lmgrd', 'spinfired')) {
+        $running = Get-Process -Name $procName -ErrorAction SilentlyContinue
+        if ($running) {
+            Write-Warn "Found running $procName.exe from a previous session - stopping it..."
+            $running | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
+            Write-OK "Stopped orphaned $procName.exe."
+        }
     }
+    Start-Sleep -Seconds 2
 }
-Start-Sleep -Seconds 2
 
-try {
-    Start-Service -Name $FLM_SERVICE_NAME -ErrorAction Stop
-    Start-Sleep -Seconds 5
-    $svcStatus = (Get-Service -Name $FLM_SERVICE_NAME).Status
-    if ($svcStatus -eq 'Running') {
-        Write-OK "Service is running."
-    } else {
-        Write-Warn "Service status is '$svcStatus' - it may still be starting."
-        Write-Warn "Check the debug log for details: $debugLogPath"
+if ($preStartStatus -eq 'Running') {
+    Write-OK "Service is already running - skipping start."
+} else {
+    try {
+        Start-Service -Name $FLM_SERVICE_NAME -ErrorAction Stop
+        Start-Sleep -Seconds 5
+    } catch {
+        # lmgrd may detach from SCM after launch (FlexLM behavior) causing a false failure.
+        # Verify by checking whether lmgrd.exe is actually running as a process.
+        Start-Sleep -Seconds 3
+        $lmgrdRunning = Get-Process -Name 'lmgrd' -ErrorAction SilentlyContinue
+        if ($lmgrdRunning) {
+            Write-OK "lmgrd.exe is running (pid $($lmgrdRunning.Id)) - license server is operational."
+            Write-Warn "Windows Service status may show Stopped - this is normal for this version of FlexLM."
+        } else {
+            Write-Warn "Could not start service: $($_.Exception.Message)"
+            Write-Warn "Check the debug log for details: $debugLogPath"
+        }
     }
-} catch {
-    Write-Warn "Could not start service: $($_.Exception.Message)"
-    Write-Warn "Check the debug log for details: $debugLogPath"
+
+    $svcStatus = (Get-Service -Name $FLM_SERVICE_NAME -ErrorAction SilentlyContinue).Status
+    $lmgrdProc = Get-Process -Name 'lmgrd' -ErrorAction SilentlyContinue
+    if ($svcStatus -eq 'Running' -or $lmgrdProc) {
+        Write-OK "License server is operational. (Service: $svcStatus)"
+    } else {
+        Write-Warn "Service status: $svcStatus - lmgrd process not detected. Check the debug log."
+        Write-Warn "Debug log: $debugLogPath"
+    }
 }
 
 # -- STEP 8: CONFIGURE WINDOWS FIREWALL ----------------------------------------
