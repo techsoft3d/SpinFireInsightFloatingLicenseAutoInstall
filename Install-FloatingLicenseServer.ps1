@@ -368,54 +368,44 @@ if ($existingSvc) {
             Stop-Service -Name $FLM_SERVICE_NAME -Force -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 3
         }
-        # Try lmgrd native removal first
-        $removeProc = Start-Process -FilePath $lmgrdExe `
-            -ArgumentList "-remove_service -service_name `"$FLM_SERVICE_NAME`"" `
-            -Wait -PassThru -NoNewWindow -ErrorAction SilentlyContinue
+        & sc.exe delete $FLM_SERVICE_NAME | Out-Null
         Start-Sleep -Seconds 2
-
-        # Fall back to sc.exe if service still registered
-        if (Get-Service -Name $FLM_SERVICE_NAME -ErrorAction SilentlyContinue) {
-            & sc.exe delete $FLM_SERVICE_NAME | Out-Null
-            Start-Sleep -Seconds 2
-        }
         Write-OK "Existing service removed."
     } catch {
         Write-Warn "Could not cleanly remove existing service: $($_.Exception.Message)"
     }
 }
 
+# Build the service binary path: quoted exe + arguments
+$svcBinPath = "`"$lmgrdExe`" -c `"$destDatFile`" -l `"$debugLogPath`""
+
 try {
-    $installArgs = "-install_service -service_name `"$FLM_SERVICE_NAME`" -c `"$destDatFile`" -l `"$debugLogPath`""
-    $installProc = Start-Process -FilePath $lmgrdExe -ArgumentList $installArgs -Wait -PassThru -NoNewWindow -ErrorAction Stop
-    if ($installProc.ExitCode -ne 0) {
-        throw "lmgrd returned exit code $($installProc.ExitCode)"
-    }
+    # New-Service passes BinaryPathName directly to SCM — most reliable quoting
+    New-Service `
+        -Name          $FLM_SERVICE_NAME `
+        -BinaryPathName $svcBinPath `
+        -DisplayName   $FLM_SERVICE_NAME `
+        -StartupType   Automatic `
+        -Description   'SpinFire Insight Floating License Manager' `
+        -ErrorAction   Stop | Out-Null
     Write-OK "Service '$FLM_SERVICE_NAME' registered."
 } catch {
-    Write-Fail "Service registration via lmgrd failed: $($_.Exception.Message)"
-    Write-Host "`n    Attempting fallback: registering service directly with sc.exe..." -ForegroundColor Yellow
+    Write-Warn "New-Service failed: $($_.Exception.Message). Trying sc.exe..."
     try {
-        $binPath = "`"$lmgrdExe`" -c `"$destDatFile`" -l+ `"$debugLogPath`""
-        $scResult = & sc.exe create $FLM_SERVICE_NAME binPath= $binPath start= auto DisplayName= $FLM_SERVICE_NAME
-        if ($LASTEXITCODE -ne 0) { throw "sc.exe create failed: $scResult" }
-        Write-OK "Service registered via sc.exe fallback."
+        # sc.exe requires the binPath value as a single argument with inner escaped quotes
+        $proc = Start-Process 'sc.exe' `
+            -ArgumentList "create `"$FLM_SERVICE_NAME`" binPath= `"$svcBinPath`" start= auto DisplayName= `"$FLM_SERVICE_NAME`"" `
+            -Wait -PassThru -NoNewWindow -ErrorAction Stop
+        if ($proc.ExitCode -ne 0) { throw "sc.exe exited with code $($proc.ExitCode)" }
+        Write-OK "Service registered via sc.exe."
     } catch {
-        Write-Fail "Fallback service registration failed: $($_.Exception.Message)"
+        Write-Fail "Service registration failed: $($_.Exception.Message)"
         Write-Host "`n    Manual alternative:" -ForegroundColor Yellow
         Write-Host "    Open lmtools.exe, go to 'Service/License File' tab, and configure manually." -ForegroundColor Yellow
         Read-Host "`nPress Enter to exit"
         try { Stop-Transcript | Out-Null } catch {}
         exit 1
     }
-}
-
-# Ensure auto-start
-try {
-    Set-Service -Name $FLM_SERVICE_NAME -StartupType Automatic -ErrorAction SilentlyContinue
-    Write-OK "Service startup type: Automatic."
-} catch {
-    Write-Warn "Could not set startup type (service will still run): $($_.Exception.Message)"
 }
 
 # -- STEP 7: START THE SERVICE -------------------------------------------------
