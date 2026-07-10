@@ -41,13 +41,12 @@ if (-not $isAdmin) {
 }
 
 # ── TRANSCRIPT / LOGGING ───────────────────────────────────────────────────────
-# Use $env:TEMP as primary log location — always writable regardless of which user
-# context the elevated process runs under. We also copy to Public Desktop at the end.
+# Write log to the same folder as the script so it's easy to find and share.
+# Falls back to $env:TEMP if the script directory isn't writable.
 $timestamp  = Get-Date -Format 'yyyyMMdd-HHmmss'
-$logFile    = "$env:TEMP\FLM-Install-$timestamp.log"
+$logFile    = "$PSScriptRoot\FLM-Install-$timestamp.log"
 try { Start-Transcript -Path $logFile -Append | Out-Null } catch {
-    # Last-resort fallback if TEMP is somehow unavailable
-    $logFile = "C:\FLM-Install-$timestamp.log"
+    $logFile = "$env:TEMP\FLM-Install-$timestamp.log"
     try { Start-Transcript -Path $logFile -Append | Out-Null } catch {}
 }
 
@@ -506,21 +505,11 @@ Write-Host "    - SpinFire_LMGRD   (lmgrd.exe)"
 Write-Host "    - SpinFire_Vendor  (spinfired.exe)"
 Write-Host "    - SpinFire_Port$FLM_PORT (TCP $FLM_PORT)"
 Write-Host ''
-Write-Host "  Setup log (TEMP)   : $logFile"
-
-# Copy log to Public Desktop so it's easy to find and attach to a support ticket
-$desktopLog = "$env:PUBLIC\Desktop\FLM-Install-$timestamp.log"
-try {
-    Stop-Transcript | Out-Null
-    Copy-Item -Path $logFile -Destination $desktopLog -Force -ErrorAction Stop
-    Write-Host "  Setup log (Desktop): $desktopLog"
-} catch {
-    Write-Host "  (Could not copy log to Desktop — use the TEMP path above)" -ForegroundColor DarkGray
-}
-
+Write-Host "  Setup log          : $logFile"
 Write-Host ''
 Write-Host '  For support: spinfiresupport@techsoft3d.com' -ForegroundColor Yellow
 Write-Host '  ========================================================' -ForegroundColor Cyan
 Write-Host ''
 
+try { Stop-Transcript | Out-Null } catch {}
 Read-Host 'Press Enter to close'
