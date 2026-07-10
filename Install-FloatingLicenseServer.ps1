@@ -28,8 +28,9 @@ $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::A
 if (-not $isAdmin) {
     if ($PSCommandPath) {
         Write-Host "`n[!] Requesting Administrator privileges — please approve the UAC prompt.`n" -ForegroundColor Yellow
+        # -NoExit keeps the elevated window open if the script crashes before its own pause
         Start-Process powershell.exe `
-            -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" `
+            -ArgumentList "-NoProfile -ExecutionPolicy Bypass -NoExit -File `"$PSCommandPath`"" `
             -Verb RunAs
     } else {
         Write-Host "[X] This script must be run as Administrator." -ForegroundColor Red
@@ -40,9 +41,27 @@ if (-not $isAdmin) {
 }
 
 # ── TRANSCRIPT / LOGGING ───────────────────────────────────────────────────────
-$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$logFile   = "$env:USERPROFILE\Desktop\FLM-Install-$timestamp.log"
-try { Start-Transcript -Path $logFile -Append | Out-Null } catch {}
+# Use $env:TEMP as primary log location — always writable regardless of which user
+# context the elevated process runs under. We also copy to Public Desktop at the end.
+$timestamp  = Get-Date -Format 'yyyyMMdd-HHmmss'
+$logFile    = "$env:TEMP\FLM-Install-$timestamp.log"
+try { Start-Transcript -Path $logFile -Append | Out-Null } catch {
+    # Last-resort fallback if TEMP is somehow unavailable
+    $logFile = "C:\FLM-Install-$timestamp.log"
+    try { Start-Transcript -Path $logFile -Append | Out-Null } catch {}
+}
+
+# ── GLOBAL ERROR TRAP ─────────────────────────────────────────────────────────
+# Catches any unhandled terminating error so the window never vanishes silently.
+trap {
+    Write-Host "`n`n  !! UNEXPECTED ERROR !!" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "  At: $($_.InvocationInfo.PositionMessage)" -ForegroundColor Red
+    Write-Host "`n  Full log saved to: $logFile" -ForegroundColor Yellow
+    try { Stop-Transcript | Out-Null } catch {}
+    Read-Host "`n  Press Enter to close"
+    break
+}
 
 # ── CONFIGURATION ──────────────────────────────────────────────────────────────
 $FLM_DOWNLOAD_URL   = 'https://downloads.spinfire.com/FloatingLicenseServer/SpinFireFloatingLicenseServer.x64.exe'
@@ -487,11 +506,21 @@ Write-Host "    - SpinFire_LMGRD   (lmgrd.exe)"
 Write-Host "    - SpinFire_Vendor  (spinfired.exe)"
 Write-Host "    - SpinFire_Port$FLM_PORT (TCP $FLM_PORT)"
 Write-Host ''
-Write-Host "  Full setup log     : $logFile"
+Write-Host "  Setup log (TEMP)   : $logFile"
+
+# Copy log to Public Desktop so it's easy to find and attach to a support ticket
+$desktopLog = "$env:PUBLIC\Desktop\FLM-Install-$timestamp.log"
+try {
+    Stop-Transcript | Out-Null
+    Copy-Item -Path $logFile -Destination $desktopLog -Force -ErrorAction Stop
+    Write-Host "  Setup log (Desktop): $desktopLog"
+} catch {
+    Write-Host "  (Could not copy log to Desktop — use the TEMP path above)" -ForegroundColor DarkGray
+}
+
 Write-Host ''
 Write-Host '  For support: spinfiresupport@techsoft3d.com' -ForegroundColor Yellow
 Write-Host '  ========================================================' -ForegroundColor Cyan
 Write-Host ''
 
 Read-Host 'Press Enter to close'
-try { Stop-Transcript | Out-Null } catch {}
