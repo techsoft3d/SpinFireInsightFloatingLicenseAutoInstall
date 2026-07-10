@@ -95,8 +95,8 @@ function Find-FLMInstallDir {
     )
     foreach ($base in $regBases) {
         if (-not (Test-Path $base)) { continue }
-        Get-ChildItem $base -ErrorAction SilentlyContinue | ForEach-Object {
-            $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+        foreach ($key in (Get-ChildItem $base -ErrorAction SilentlyContinue)) {
+            $props = Get-ItemProperty $key.PSPath -ErrorAction SilentlyContinue
             if ($props.DisplayName -like '*SpinFire*License*' -or
                 $props.DisplayName -like '*Floating License Manager*' -or
                 $props.DisplayName -like '*Tech Soft 3D*' -or
@@ -224,7 +224,7 @@ if (-not (Test-Path $lmgrdExe)) {
 }
 
 # -- STEP 3: LOCATE LICENSE FILES ----------------------------------------------
-Write-Step "Locating license files ($FLM_LICENSE_FILE and $FLM_DATA_FILE)..."
+Write-Step "Locating license files ($FLM_DATA_FILE required, $FLM_LICENSE_FILE optional)..."
 
 $licSourceFile = $null
 $datSourceFile = $null
@@ -234,21 +234,21 @@ $downloadsDir = "$env:USERPROFILE\Downloads"
 $autoLic = Join-Path $downloadsDir $FLM_LICENSE_FILE
 $autoDat = Join-Path $downloadsDir $FLM_DATA_FILE
 
-if ((Test-Path $autoLic) -and (Test-Path $autoDat)) {
-    Write-Host "`n    Found both license files in your Downloads folder:" -ForegroundColor White
-    Write-Host "      $autoLic" -ForegroundColor White
-    Write-Host "      $autoDat" -ForegroundColor White
+if (Test-Path $autoDat) {
+    $foundMsg = "    Found $FLM_DATA_FILE in your Downloads folder:`n      $autoDat"
+    if (Test-Path $autoLic) { $foundMsg += "`n      $autoLic (also found)" }
+    Write-Host "`n$foundMsg" -ForegroundColor White
     $answer = Read-Host "`n    Use these files? (Y/N) [default: Y]"
     if ($answer -eq '' -or $answer -match '^[Yy]') {
-        $licSourceFile = $autoLic
         $datSourceFile = $autoDat
+        if (Test-Path $autoLic) { $licSourceFile = $autoLic }
     }
 }
 
-# Manual selection loop
-while (-not ($licSourceFile -and $datSourceFile)) {
+# Manual selection loop — only sfpflv2.dat is required
+while (-not $datSourceFile) {
     Write-Host ''
-    $userInput = Read-Host "    Enter the FOLDER PATH containing $FLM_LICENSE_FILE and $FLM_DATA_FILE`n    (press Enter to use Downloads folder)"
+    $userInput = Read-Host "    Enter the FOLDER PATH containing $FLM_DATA_FILE`n    (press Enter to use Downloads folder)"
 
     if ([string]::IsNullOrWhiteSpace($userInput)) {
         $searchDir = $downloadsDir
@@ -256,22 +256,21 @@ while (-not ($licSourceFile -and $datSourceFile)) {
         $searchDir = $userInput.Trim().Trim('"')
     }
 
-    $tryLic = Join-Path $searchDir $FLM_LICENSE_FILE
     $tryDat = Join-Path $searchDir $FLM_DATA_FILE
-    $missing = @()
+    $tryLic = Join-Path $searchDir $FLM_LICENSE_FILE
 
-    if (-not (Test-Path $tryLic)) { $missing += $FLM_LICENSE_FILE }
-    if (-not (Test-Path $tryDat)) { $missing += $FLM_DATA_FILE }
-
-    if ($missing.Count -gt 0) {
-        Write-Warn "The following file(s) were not found in '$searchDir':"
-        $missing | ForEach-Object { Write-Warn "  - $_" }
-        Write-Host "    Please check that both files are in the folder and try again." -ForegroundColor Yellow
+    if (-not (Test-Path $tryDat)) {
+        Write-Warn "$FLM_DATA_FILE not found in '$searchDir'. Please try again."
         continue
     }
 
-    $licSourceFile = $tryLic
     $datSourceFile = $tryDat
+    if (Test-Path $tryLic) {
+        $licSourceFile = $tryLic
+        Write-OK "Found $FLM_LICENSE_FILE as well."
+    } else {
+        Write-Warn "$FLM_LICENSE_FILE not found in '$searchDir' - it will be skipped (not required for the server)."
+    }
 }
 
 # Validate sfpflv2.dat content (this is the file with the SERVER line)
@@ -342,10 +341,14 @@ $destDatFile  = Join-Path $flmInstallDir $FLM_DATA_FILE
 $debugLogPath = Join-Path $flmInstallDir 'lmgrd_debug.log'
 
 try {
-    Copy-Item -Path $licSourceFile -Destination $destLicFile -Force -ErrorAction Stop
     Copy-Item -Path $datSourceFile -Destination $destDatFile -Force -ErrorAction Stop
-    Write-OK "Copied $FLM_LICENSE_FILE  -> $destLicFile"
     Write-OK "Copied $FLM_DATA_FILE -> $destDatFile"
+    if ($licSourceFile) {
+        Copy-Item -Path $licSourceFile -Destination $destLicFile -Force -ErrorAction Stop
+        Write-OK "Copied $FLM_LICENSE_FILE -> $destLicFile"
+    } else {
+        Write-Warn "$FLM_LICENSE_FILE not provided - skipping (not required for license server)."
+    }
 } catch {
     Write-Fail "Failed to copy license files: $($_.Exception.Message)"
     Read-Host "`nPress Enter to exit"
@@ -383,7 +386,7 @@ if ($existingSvc) {
 }
 
 try {
-    $installArgs = "-install_service -service_name `"$FLM_SERVICE_NAME`" -c `"$destLicFile`" -l `"$debugLogPath`""
+    $installArgs = "-install_service -service_name `"$FLM_SERVICE_NAME`" -c `"$destDatFile`" -l `"$debugLogPath`""
     $installProc = Start-Process -FilePath $lmgrdExe -ArgumentList $installArgs -Wait -PassThru -NoNewWindow -ErrorAction Stop
     if ($installProc.ExitCode -ne 0) {
         throw "lmgrd returned exit code $($installProc.ExitCode)"
@@ -393,7 +396,7 @@ try {
     Write-Fail "Service registration via lmgrd failed: $($_.Exception.Message)"
     Write-Host "`n    Attempting fallback: registering service directly with sc.exe..." -ForegroundColor Yellow
     try {
-        $binPath = "`"$lmgrdExe`" -c `"$destLicFile`" -l+ `"$debugLogPath`""
+        $binPath = "`"$lmgrdExe`" -c `"$destDatFile`" -l+ `"$debugLogPath`""
         $scResult = & sc.exe create $FLM_SERVICE_NAME binPath= $binPath start= auto DisplayName= $FLM_SERVICE_NAME
         if ($LASTEXITCODE -ne 0) { throw "sc.exe create failed: $scResult" }
         Write-OK "Service registered via sc.exe fallback."

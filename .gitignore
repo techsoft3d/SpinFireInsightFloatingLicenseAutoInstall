@@ -1,0 +1,6 @@
+# License files (customer-specific, must not be committed)
+license.al
+sfpflv2.dat
+
+# Setup logs
+FLM-Install-*.log
