@@ -52,15 +52,16 @@ FEATURE <name> spinfired 1.0 <expiry> <seats> SIGN="..."
 | `lmgrd -install_service` unrecognized flag | Replaced with `New-Service` cmdlet (primary) + `sc.exe` (fallback) |
 | Service failed to start ("already running") | Added orphaned process kill step before `Start-Service` — stale lmgrd/spinfired from prior runs conflict with new service start |
 | Service passed `license.al` to `-c` flag | Fixed to pass `sfpflv2.dat` |
+| Port-specific firewall rules were redundant | Removed `SpinFire_Port27000` and vendor port rules — program-based rules (`lmgrd.exe`, `spinfired.exe`) already allow all ports those executables use |
 | Log went to wrong Desktop after UAC elevation | Log now writes to `$PSScriptRoot` (script folder); falls back to `$env:TEMP` |
 | Window closed instantly on crash (no log) | Added global `trap {}`, `-NoExit` on RunAs relaunch, `pause` in bat on error |
 
 ## What Still Needs Testing
 - [x] `New-Service` registration succeeds ✅ confirmed working
 - [x] Firewall rules added correctly ✅ confirmed working
-- [ ] Service starts and lmgrd runs correctly (was blocked by orphaned process — fix applied)
-- [ ] `spinfired.exe` launches (spawned by lmgrd after reading license)
-- [ ] SpinFire Insight client can check out a license using `27000@<hostname>`
+- [x] Service starts and lmgrd runs correctly ✅ confirmed (lmgrd_debug.log verified)
+- [x] `spinfired.exe` launches ✅ confirmed (pid 6764 in debug log)
+- [x] SpinFire Insight client can check out a license ✅ confirmed (`27000@SPINFIRETEST`)
 
 ## Script Flow Summary
 1. Self-elevate to Administrator (UAC)
@@ -72,7 +73,7 @@ FEATURE <name> spinfired 1.0 <expiry> <seats> SIGN="..."
 7. Copy files to FLM install directory
 8. Register `lmgrd.exe` as Windows Service `"SpinFire License Server"` via `New-Service`
 9. Start service
-10. Add firewall inbound rules: `SpinFire_LMGRD` (lmgrd.exe), `SpinFire_Vendor` (spinfired.exe), `SpinFire_Port27000` (TCP 27000)
+10. Add firewall inbound rules: `SpinFire_LMGRD` (lmgrd.exe, all ports), `SpinFire_Vendor` (spinfired.exe, all ports) — program-based rules cover all ports used by each executable, no separate port rules needed
 11. Print summary including client connection string `27000@<hostname>`
 
 ## Key Technical Notes

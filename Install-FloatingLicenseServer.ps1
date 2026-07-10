@@ -489,53 +489,7 @@ foreach ($rule in $programRules) {
     }
 }
 
-# Port rule
-$portRuleName = "SpinFire_Port$FLM_PORT"
-if (-not (Get-NetFirewallRule -DisplayName $portRuleName -ErrorAction SilentlyContinue)) {
-    try {
-        New-NetFirewallRule `
-            -DisplayName  $portRuleName `
-            -Description  "SpinFire Floating License Manager - TCP port $FLM_PORT" `
-            -Direction    Inbound `
-            -Action       Allow `
-            -Protocol     TCP `
-            -LocalPort    $FLM_PORT `
-            -Profile      Any `
-            -ErrorAction  Stop | Out-Null
-        Write-OK "Firewall rule added: $portRuleName (TCP $FLM_PORT inbound)"
-    } catch {
-        Write-Warn "Could not add port rule: $($_.Exception.Message)"
-    }
-} else {
-    Write-OK "Firewall rule '$portRuleName' already exists - skipping."
-}
-
-# Vendor daemon port rule (only if PORT= was specified in sfpflv2.dat)
-if ($vendorPort) {
-    $vendorPortRuleName = "SpinFire_VendorPort$vendorPort"
-    if (-not (Get-NetFirewallRule -DisplayName $vendorPortRuleName -ErrorAction SilentlyContinue)) {
-        try {
-            New-NetFirewallRule `
-                -DisplayName  $vendorPortRuleName `
-                -Description  "SpinFire vendor daemon (spinfired) - TCP port $vendorPort" `
-                -Direction    Inbound `
-                -Action       Allow `
-                -Protocol     TCP `
-                -LocalPort    $vendorPort `
-                -Profile      Any `
-                -ErrorAction  Stop | Out-Null
-            Write-OK "Firewall rule added: $vendorPortRuleName (TCP $vendorPort inbound)"
-        } catch {
-            Write-Warn "Could not add vendor port rule: $($_.Exception.Message)"
-        }
-    } else {
-        Write-OK "Firewall rule '$vendorPortRuleName' already exists - skipping."
-    }
-} else {
-    Write-Warn "No fixed vendor daemon port found in $FLM_DATA_FILE."
-    Write-Host "    spinfired will use a random port - remote clients may be blocked by firewalls." -ForegroundColor Yellow
-    Write-Host "    To fix: add 'PORT=<number>' to the VENDOR line in $FLM_DATA_FILE and re-run." -ForegroundColor Yellow
-}
+# Program-based rules cover all ports used by lmgrd and spinfired - no port-specific rules needed.
 
 # -- SUMMARY --------------------------------------------------------------------
 $finalStatus = (Get-Service -Name $FLM_SERVICE_NAME -ErrorAction SilentlyContinue).Status
@@ -554,18 +508,14 @@ Write-Host "  Port               : $FLM_PORT (TCP)"
 if ($vendorPort) {
     Write-Host "  Vendor daemon port : $vendorPort (TCP)"
 } else {
-    Write-Host "  Vendor daemon port : dynamic (WARNING: may block remote clients)" -ForegroundColor Yellow
+    Write-Host "  Vendor daemon port : dynamic (pinned via PORT= in $FLM_DATA_FILE recommended)" -ForegroundColor Yellow
 }
 Write-Host ''
 Write-Host "  Clients connect to : $FLM_PORT@$currentHostname"
 Write-Host ''
 Write-Host '  Firewall rules added:'
-Write-Host "    - SpinFire_LMGRD   (lmgrd.exe)"
-Write-Host "    - SpinFire_Vendor  (spinfired.exe)"
-Write-Host "    - SpinFire_Port$FLM_PORT (TCP $FLM_PORT)"
-if ($vendorPort) {
-    Write-Host "    - SpinFire_VendorPort$vendorPort (TCP $vendorPort)"
-}
+Write-Host "    - SpinFire_LMGRD   (lmgrd.exe - all ports)"
+Write-Host "    - SpinFire_Vendor  (spinfired.exe - all ports)"
 Write-Host ''
 Write-Host "  Setup log          : $logFile"
 Write-Host ''

@@ -43,7 +43,7 @@ Confirmed install directory (from test): `C:\Program Files\Tech Soft 3D\Floating
 | 10 | **Copy license files** | ✅ Done | Copies `license.al` and `sfpflv2.dat` to FLM install directory |
 | 11 | **Service registration** | ✅ Done | `lmgrd -install_service`; falls back to `sc.exe create` if needed |
 | 12 | **Start service** | ✅ Done | `Start-Service`; polls status; directs to debug log on failure |
-| 13 | **Firewall rules** | ✅ Done | Inbound rules for `lmgrd.exe` (SpinFire_LMGRD), `spinfired.exe` (SpinFire_Vendor), TCP 27000; idempotent |
+| 13 | **Firewall rules** | ✅ Done | Program-based inbound rules for `lmgrd.exe` (SpinFire_LMGRD) and `spinfired.exe` (SpinFire_Vendor); program rules cover all ports — no separate port rules needed; idempotent |
 | 14 | **Summary output** | ✅ Done | Prints install path, license files, service status, client connection string |
 | 15 | **`Run-Setup.bat` launcher** | ✅ Done | Checks admin, self-elevates via UAC, runs script with execution policy bypass |
 | 16 | **`README.txt`** | ✅ Done | Prerequisites, run options (A/B/C), walkthrough, troubleshooting, re-run notes |

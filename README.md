@@ -56,17 +56,9 @@ The script walks you through the following automatically:
 
 ---
 
-## Giving Clients the Connection String
+## Connecting the client
 
-After setup completes, configure each SpinFire Insight workstation to use:
-
-```
-27000@<this-server-hostname>
-```
-
-**Example:** `27000@rh00vmgfps01`
-
-You can find your server hostname in the setup summary, or by running `hostname` in a Command Prompt on this machine.
+After setup is complete, navigate to SpinFire Insight on your client machine. Then go to settings -> manage, change server parameters. Enter your servername, mac address, and a port (if one was specified). Click okay, then you should hopefully be greated by a connection successful message. 
 
 ---
 
