@@ -296,9 +296,15 @@ $macOk       = $false
 $licHostname = $null
 $licMac      = $null
 
-if ($datContent -match '^\s*SERVER\s+(\S+)\s+(\S+)') {
+if ($datContent -match '^\s*SERVER\s+(\S+)\s+(\S+)(?:\s+(\d+))?') {
     $licHostname = $Matches[1]
     $licMac      = $Matches[2].ToLower() -replace '[:\-]', ''
+
+    # Override default lmgrd port if specified on SERVER line
+    if ($Matches[3]) {
+        $FLM_PORT = [int]$Matches[3]
+        Write-OK "Detected lmgrd port from license file: $FLM_PORT"
+    }
 
     # Normalize current machine MAC addresses (strip separators, lowercase)
     $currentMacs = Get-NetAdapter -ErrorAction SilentlyContinue |
