@@ -50,16 +50,16 @@ FEATURE <name> spinfired 1.0 <expiry> <seats> SIGN="..."
 | Registry scan returned array instead of string | Replaced `ForEach-Object { return }` with `foreach` loops (PowerShell scoping bug) |
 | `license.al` was validated for SERVER line but doesn't have one | Validation moved to `sfpflv2.dat` |
 | `lmgrd -install_service` unrecognized flag | Replaced with `New-Service` cmdlet (primary) + `sc.exe` (fallback) |
-| `sc.exe create` failed due to argument quoting | Now uses `Start-Process sc.exe -ArgumentList` for correct quoting |
+| Service failed to start ("already running") | Added orphaned process kill step before `Start-Service` — stale lmgrd/spinfired from prior runs conflict with new service start |
 | Service passed `license.al` to `-c` flag | Fixed to pass `sfpflv2.dat` |
 | Log went to wrong Desktop after UAC elevation | Log now writes to `$PSScriptRoot` (script folder); falls back to `$env:TEMP` |
 | Window closed instantly on crash (no log) | Added global `trap {}`, `-NoExit` on RunAs relaunch, `pause` in bat on error |
 
 ## What Still Needs Testing
-- [ ] `New-Service` registration succeeds
-- [ ] Service starts and lmgrd runs correctly
+- [x] `New-Service` registration succeeds ✅ confirmed working
+- [x] Firewall rules added correctly ✅ confirmed working
+- [ ] Service starts and lmgrd runs correctly (was blocked by orphaned process — fix applied)
 - [ ] `spinfired.exe` launches (spawned by lmgrd after reading license)
-- [ ] Firewall rules are added correctly
 - [ ] SpinFire Insight client can check out a license using `27000@<hostname>`
 
 ## Script Flow Summary

@@ -245,7 +245,7 @@ if (Test-Path $autoDat) {
     }
 }
 
-# Manual selection loop — only sfpflv2.dat is required
+# Manual selection loop - only sfpflv2.dat is required
 while (-not $datSourceFile) {
     Write-Host ''
     $userInput = Read-Host "    Enter the FOLDER PATH containing $FLM_DATA_FILE`n    (press Enter to use Downloads folder)"
@@ -380,7 +380,7 @@ if ($existingSvc) {
 $svcBinPath = "`"$lmgrdExe`" -c `"$destDatFile`" -l `"$debugLogPath`""
 
 try {
-    # New-Service passes BinaryPathName directly to SCM — most reliable quoting
+    # New-Service passes BinaryPathName directly to SCM - most reliable quoting
     New-Service `
         -Name          $FLM_SERVICE_NAME `
         -BinaryPathName $svcBinPath `
@@ -410,6 +410,18 @@ try {
 
 # -- STEP 7: START THE SERVICE -------------------------------------------------
 Write-Step "Starting service '$FLM_SERVICE_NAME'..."
+
+# Kill any orphaned lmgrd/spinfired processes before starting - a leftover process
+# from a previous run will cause lmgrd to detect a conflict and exit immediately.
+foreach ($procName in @('lmgrd', 'spinfired')) {
+    $running = Get-Process -Name $procName -ErrorAction SilentlyContinue
+    if ($running) {
+        Write-Warn "Found running $procName.exe from a previous session - stopping it..."
+        $running | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
+        Write-OK "Stopped orphaned $procName.exe."
+    }
+}
+Start-Sleep -Seconds 2
 
 try {
     Start-Service -Name $FLM_SERVICE_NAME -ErrorAction Stop
