@@ -20,14 +20,14 @@
     TechSoft3D Support: spinfiresupport@techsoft3d.com
 #>
 
-# ── SELF-ELEVATION ─────────────────────────────────────────────────────────────
+# -- SELF-ELEVATION -------------------------------------------------------------
 # Relaunch as Administrator if not already elevated.
 $currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 if (-not $isAdmin) {
     if ($PSCommandPath) {
-        Write-Host "`n[!] Requesting Administrator privileges — please approve the UAC prompt.`n" -ForegroundColor Yellow
+        Write-Host "`n[!] Requesting Administrator privileges - please approve the UAC prompt.`n" -ForegroundColor Yellow
         # -NoExit keeps the elevated window open if the script crashes before its own pause
         Start-Process powershell.exe `
             -ArgumentList "-NoProfile -ExecutionPolicy Bypass -NoExit -File `"$PSCommandPath`"" `
@@ -40,7 +40,7 @@ if (-not $isAdmin) {
     exit
 }
 
-# ── TRANSCRIPT / LOGGING ───────────────────────────────────────────────────────
+# -- TRANSCRIPT / LOGGING -------------------------------------------------------
 # Write log to the same folder as the script so it's easy to find and share.
 # Falls back to $env:TEMP if the script directory isn't writable.
 $timestamp  = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -50,7 +50,7 @@ try { Start-Transcript -Path $logFile -Append | Out-Null } catch {
     try { Start-Transcript -Path $logFile -Append | Out-Null } catch {}
 }
 
-# ── GLOBAL ERROR TRAP ─────────────────────────────────────────────────────────
+# -- GLOBAL ERROR TRAP ---------------------------------------------------------
 # Catches any unhandled terminating error so the window never vanishes silently.
 trap {
     Write-Host "`n`n  !! UNEXPECTED ERROR !!" -ForegroundColor Red
@@ -62,7 +62,7 @@ trap {
     break
 }
 
-# ── CONFIGURATION ──────────────────────────────────────────────────────────────
+# -- CONFIGURATION --------------------------------------------------------------
 $FLM_DOWNLOAD_URL   = 'https://downloads.spinfire.com/FloatingLicenseServer/SpinFireFloatingLicenseServer.x64.exe'
 $FLM_SERVICE_NAME   = 'SpinFire License Server'
 $FLM_PORT           = 27000
@@ -79,7 +79,7 @@ $FLM_CANDIDATE_DIRS = @(
     'C:\Program Files (x86)\Actify\FLM'
 )
 
-# ── HELPER FUNCTIONS ───────────────────────────────────────────────────────────
+# -- HELPER FUNCTIONS -----------------------------------------------------------
 function Write-Step  { param([string]$Msg) Write-Host "`n[>] $Msg" -ForegroundColor Cyan }
 function Write-OK    { param([string]$Msg) Write-Host "    [OK] $Msg" -ForegroundColor Green }
 function Write-Warn  { param([string]$Msg) Write-Host "    [!] $Msg"  -ForegroundColor Yellow }
@@ -114,16 +114,16 @@ function Find-FLMInstallDir {
     return $null
 }
 
-# ── BANNER ─────────────────────────────────────────────────────────────────────
+# -- BANNER ---------------------------------------------------------------------
 Clear-Host
 Write-Host ''
 Write-Host '  ========================================================' -ForegroundColor Cyan
-Write-Host '    SpinFire Insight — Floating License Manager Setup'      -ForegroundColor Cyan
+Write-Host '    SpinFire Insight - Floating License Manager Setup'      -ForegroundColor Cyan
 Write-Host '  ========================================================' -ForegroundColor Cyan
 Write-Host "  Setup log will be saved to: $logFile" -ForegroundColor DarkGray
 Write-Host ''
 
-# ── STEP 1: DETECT EXISTING FLM INSTALLATION ──────────────────────────────────
+# -- STEP 1: DETECT EXISTING FLM INSTALLATION ----------------------------------
 Write-Step 'Checking for existing Floating License Manager installation...'
 
 $flmInstallDir = Find-FLMInstallDir
@@ -135,7 +135,7 @@ if ($flmInstallDir) {
     Write-Warn 'Floating License Manager not found. Proceeding with download and install.'
 }
 
-# ── STEP 2: DOWNLOAD AND INSTALL FLM (if needed) ──────────────────────────────
+# -- STEP 2: DOWNLOAD AND INSTALL FLM (if needed) ------------------------------
 if (-not $flmInstallDir) {
     Write-Step 'Downloading Floating License Manager installer...'
 
@@ -211,7 +211,7 @@ if (-not (Test-Path $lmgrdExe)) {
     exit 1
 }
 
-# ── STEP 3: LOCATE LICENSE FILES ──────────────────────────────────────────────
+# -- STEP 3: LOCATE LICENSE FILES ----------------------------------------------
 Write-Step "Locating license files ($FLM_LICENSE_FILE and $FLM_DATA_FILE)..."
 
 $licSourceFile = $null
@@ -281,7 +281,7 @@ if ($licContent -notmatch '(?im)^VENDOR\s+') {
 
 Write-OK "License files validated."
 
-# ── STEP 4: CHECK HOSTNAME AND MAC ADDRESS (from sfpflv2.dat line 1) ──────────
+# -- STEP 4: CHECK HOSTNAME AND MAC ADDRESS (from sfpflv2.dat line 1) ----------
 # sfpflv2.dat first line format: SERVER <hostname> <macaddress>
 # e.g.:  SERVER rh00vmgfps01 0050569321d2
 $currentHostname = $env:COMPUTERNAME
@@ -306,8 +306,8 @@ if ($datContent -match '^\s*SERVER\s+(\S+)\s+(\S+)') {
 
     Write-Host ''
     Write-Host '    License file binding:' -ForegroundColor White
-    Write-Host "      Hostname : $licHostname  $(if ($hostnameOk) { '✓ matches' } else { '✗ MISMATCH' })" -ForegroundColor $(if ($hostnameOk) { 'Green' } else { 'Yellow' })
-    Write-Host "      MAC addr : $licMac  $(if ($macOk) { '✓ matches' } else { '✗ MISMATCH' })" -ForegroundColor $(if ($macOk) { 'Green' } else { 'Yellow' })
+    Write-Host "      Hostname : $licHostname  $(if ($hostnameOk) { '[OK] matches' } else { '[!!] MISMATCH' })" -ForegroundColor $(if ($hostnameOk) { 'Green' } else { 'Yellow' })
+    Write-Host "      MAC addr : $licMac  $(if ($macOk) { '[OK] matches' } else { '[!!] MISMATCH' })" -ForegroundColor $(if ($macOk) { 'Green' } else { 'Yellow' })
     Write-Host "      This machine: $currentHostname" -ForegroundColor White
 
     if (-not $hostnameOk -or -not $macOk) {
@@ -326,10 +326,10 @@ if ($datContent -match '^\s*SERVER\s+(\S+)\s+(\S+)') {
         }
     }
 } else {
-    Write-Warn "Could not parse SERVER line from $FLM_DATA_FILE — skipping binding check."
+    Write-Warn "Could not parse SERVER line from $FLM_DATA_FILE - skipping binding check."
 }
 
-# ── STEP 5: COPY LICENSE FILES ────────────────────────────────────────────────
+# -- STEP 5: COPY LICENSE FILES ------------------------------------------------
 Write-Step 'Copying license files to FLM install directory...'
 
 $destLicFile  = Join-Path $flmInstallDir $FLM_LICENSE_FILE
@@ -339,8 +339,8 @@ $debugLogPath = Join-Path $flmInstallDir 'lmgrd_debug.log'
 try {
     Copy-Item -Path $licSourceFile -Destination $destLicFile -Force -ErrorAction Stop
     Copy-Item -Path $datSourceFile -Destination $destDatFile -Force -ErrorAction Stop
-    Write-OK "Copied $FLM_LICENSE_FILE  → $destLicFile"
-    Write-OK "Copied $FLM_DATA_FILE → $destDatFile"
+    Write-OK "Copied $FLM_LICENSE_FILE  -> $destLicFile"
+    Write-OK "Copied $FLM_DATA_FILE -> $destDatFile"
 } catch {
     Write-Fail "Failed to copy license files: $($_.Exception.Message)"
     Read-Host "`nPress Enter to exit"
@@ -348,7 +348,7 @@ try {
     exit 1
 }
 
-# ── STEP 6: REGISTER LMGRD AS WINDOWS SERVICE ────────────────────────────────
+# -- STEP 6: REGISTER LMGRD AS WINDOWS SERVICE --------------------------------
 Write-Step "Registering '$FLM_SERVICE_NAME' as a Windows Service..."
 
 $existingSvc = Get-Service -Name $FLM_SERVICE_NAME -ErrorAction SilentlyContinue
@@ -410,7 +410,7 @@ try {
     Write-Warn "Could not set startup type (service will still run): $($_.Exception.Message)"
 }
 
-# ── STEP 7: START THE SERVICE ─────────────────────────────────────────────────
+# -- STEP 7: START THE SERVICE -------------------------------------------------
 Write-Step "Starting service '$FLM_SERVICE_NAME'..."
 
 try {
@@ -420,7 +420,7 @@ try {
     if ($svcStatus -eq 'Running') {
         Write-OK "Service is running."
     } else {
-        Write-Warn "Service status is '$svcStatus' — it may still be starting."
+        Write-Warn "Service status is '$svcStatus' - it may still be starting."
         Write-Warn "Check the debug log for details: $debugLogPath"
     }
 } catch {
@@ -428,7 +428,7 @@ try {
     Write-Warn "Check the debug log for details: $debugLogPath"
 }
 
-# ── STEP 8: CONFIGURE WINDOWS FIREWALL ────────────────────────────────────────
+# -- STEP 8: CONFIGURE WINDOWS FIREWALL ----------------------------------------
 Write-Step 'Configuring Windows Firewall inbound rules...'
 
 # Rules for program executables
@@ -440,11 +440,11 @@ $programRules = @(
 foreach ($rule in $programRules) {
     $existing = Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction SilentlyContinue
     if ($existing) {
-        Write-OK "Firewall rule '$($rule.Name)' already exists — skipping."
+        Write-OK "Firewall rule '$($rule.Name)' already exists - skipping."
         continue
     }
     if (-not (Test-Path $rule.Path)) {
-        Write-Warn "'$($rule.Path)' not found — skipping firewall rule."
+        Write-Warn "'$($rule.Path)' not found - skipping firewall rule."
         continue
     }
     try {
@@ -468,7 +468,7 @@ if (-not (Get-NetFirewallRule -DisplayName $portRuleName -ErrorAction SilentlyCo
     try {
         New-NetFirewallRule `
             -DisplayName  $portRuleName `
-            -Description  "SpinFire Floating License Manager — TCP port $FLM_PORT" `
+            -Description  "SpinFire Floating License Manager - TCP port $FLM_PORT" `
             -Direction    Inbound `
             -Action       Allow `
             -Protocol     TCP `
@@ -480,15 +480,15 @@ if (-not (Get-NetFirewallRule -DisplayName $portRuleName -ErrorAction SilentlyCo
         Write-Warn "Could not add port rule: $($_.Exception.Message)"
     }
 } else {
-    Write-OK "Firewall rule '$portRuleName' already exists — skipping."
+    Write-OK "Firewall rule '$portRuleName' already exists - skipping."
 }
 
-# ── SUMMARY ────────────────────────────────────────────────────────────────────
+# -- SUMMARY --------------------------------------------------------------------
 $finalStatus = (Get-Service -Name $FLM_SERVICE_NAME -ErrorAction SilentlyContinue).Status
 
 Write-Host ''
 Write-Host '  ========================================================' -ForegroundColor Cyan
-Write-Host '    Setup Complete — Summary'                               -ForegroundColor Cyan
+Write-Host '    Setup Complete - Summary'                               -ForegroundColor Cyan
 Write-Host '  ========================================================' -ForegroundColor Cyan
 Write-Host "  Install directory  : $flmInstallDir"
 Write-Host "  License file       : $destLicFile"

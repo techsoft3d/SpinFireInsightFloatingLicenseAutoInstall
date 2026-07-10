@@ -24,4 +24,16 @@ if %errorLevel% neq 0 (
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%"
 
+:: If PowerShell exited with a non-zero code (crash before the script's own pause),
+:: keep this window open so the error is visible.
+if %errorLevel% neq 0 (
+    echo.
+    echo ============================================================
+    echo  Setup exited unexpectedly (exit code: %errorLevel%)
+    echo  Check for FLM-Install-*.log in this folder.
+    echo ============================================================
+    echo.
+    pause
+)
+
 endlocal
