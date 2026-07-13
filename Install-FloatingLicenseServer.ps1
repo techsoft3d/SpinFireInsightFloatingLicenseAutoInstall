@@ -72,14 +72,10 @@ $FLM_LMGRD          = 'lmgrd.exe'
 $FLM_VENDOR_DAEMON  = 'spinfired.exe'
 
 # Candidate install paths (checked in order)
-$FLM_CANDIDATE_DIRS = @(
-    'C:\Program Files\Tech Soft 3D\Floating License Manager',
-    'C:\Program Files (x86)\Tech Soft 3D\Floating License Manager',
-    'C:\Program Files\TECHSOFT3D\SpinFire Floating License Server',
-    'C:\Program Files (x86)\TECHSOFT3D\SpinFire Floating License Server',
-    'C:\Program Files\Actify\FLM',
-    'C:\Program Files (x86)\Actify\FLM'
-)
+$FLM_REQUIRED_VERSION = '11.19.8.0'
+
+# SpinFire FLM is always installed here; other lmtools installations are not modified
+$FLM_INSTALL_DIR = 'C:\Program Files\Tech Soft 3D\Floating License Manager'
 
 # -- HELPER FUNCTIONS -----------------------------------------------------------
 function Write-Step  { param([string]$Msg) Write-Host "`n[>] $Msg" -ForegroundColor Cyan }
@@ -87,44 +83,6 @@ function Write-OK    { param([string]$Msg) Write-Host "    [OK] $Msg" -Foregroun
 function Write-Warn  { param([string]$Msg) Write-Host "    [!] $Msg"  -ForegroundColor Yellow }
 function Write-Fail  { param([string]$Msg) Write-Host "    [X] $Msg"  -ForegroundColor Red }
 
-function Find-FLMInstallDir {
-    # 1. Check Windows Uninstall registry (most reliable after install)
-    $regBases = @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
-    )
-    foreach ($base in $regBases) {
-        if (-not (Test-Path $base)) { continue }
-        foreach ($key in (Get-ChildItem $base -ErrorAction SilentlyContinue)) {
-            $props = Get-ItemProperty $key.PSPath -ErrorAction SilentlyContinue
-            if ($props.DisplayName -like '*SpinFire*License*' -or
-                $props.DisplayName -like '*Floating License Manager*' -or
-                $props.DisplayName -like '*Tech Soft 3D*' -or
-                $props.DisplayName -like '*Actify*FLM*') {
-                $loc = $props.InstallLocation
-                if ($loc -and (Test-Path (Join-Path $loc $FLM_LMGRD))) {
-                    return $loc.TrimEnd('\')
-                }
-            }
-        }
-    }
-
-    # 2. Check known candidate directories
-    foreach ($dir in $FLM_CANDIDATE_DIRS) {
-        if (Test-Path (Join-Path $dir $FLM_LMGRD)) {
-            return $dir
-        }
-    }
-
-    # 3. Last resort: search Program Files for lmgrd.exe
-    foreach ($root in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
-        if (-not $root) { continue }
-        $found = Get-ChildItem -Path $root -Filter 'lmgrd.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($found) { return $found.DirectoryName }
-    }
-
-    return $null
-}
 
 # -- BANNER ---------------------------------------------------------------------
 Clear-Host
@@ -138,17 +96,38 @@ Write-Host ''
 # -- STEP 1: DETECT EXISTING FLM INSTALLATION ----------------------------------
 Write-Step 'Checking for existing Floating License Manager installation...'
 
-$flmInstallDir = Find-FLMInstallDir
+$flmInstallDir = $FLM_INSTALL_DIR
+$lmgrdExe      = Join-Path $flmInstallDir $FLM_LMGRD
+$spinfiredExe  = Join-Path $flmInstallDir $FLM_VENDOR_DAEMON
 
-if ($flmInstallDir) {
-    Write-OK "FLM already installed at: $flmInstallDir"
-    Write-OK "Skipping download and installation."
+$flmAlreadyInstalled = $false
+if (Test-Path $lmgrdExe) {
+    $vi = (Get-Item $lmgrdExe -ErrorAction SilentlyContinue).VersionInfo
+    $installedVersion = "$($vi.FileMajorPart).$($vi.FileMinorPart).$($vi.FileBuildPart).$($vi.FilePrivatePart)"
+    if ($installedVersion -eq $FLM_REQUIRED_VERSION) {
+        Write-OK "FLM v$FLM_REQUIRED_VERSION already installed at: $flmInstallDir"
+        $flmAlreadyInstalled = $true
+    } else {
+        Write-Warn "FLM found at expected path but version is $installedVersion (required: $FLM_REQUIRED_VERSION)."
+        Write-Host ''
+        Write-Host "    Version $FLM_REQUIRED_VERSION is required to run SpinFire Insight licenses 2026.1.0+." -ForegroundColor Yellow
+        Write-Host "    The correct version can be downloaded and installed automatically." -ForegroundColor Yellow
+        Write-Host ''
+        $answer = Read-Host '    Download and install the correct version now? (Y/N) [default: Y]'
+        if ($answer -match '^[Nn]') {
+            Write-Host ''
+            Write-Host "    Setup cancelled. Please install FLM version $FLM_REQUIRED_VERSION and re-run." -ForegroundColor Yellow
+            Read-Host "`nPress Enter to exit"
+            try { Stop-Transcript | Out-Null } catch {}
+            exit 0
+        }
+    }
 } else {
-    Write-Warn 'Floating License Manager not found. Proceeding with download and install.'
+    Write-Warn 'Floating License Manager not found at expected path. Proceeding with download and install.'
 }
 
 # -- STEP 2: DOWNLOAD AND INSTALL FLM (if needed) ------------------------------
-if (-not $flmInstallDir) {
+if (-not $flmAlreadyInstalled) {
     Write-Step 'Downloading Floating License Manager installer...'
 
     $installerPath = Join-Path $env:TEMP 'SpinFireFloatingLicenseServer.x64.exe'
@@ -199,29 +178,33 @@ if (-not $flmInstallDir) {
         exit 1
     }
 
-    # Wait for install to settle, then re-scan
+    # Wait for install to settle, then verify canonical path and version
     Start-Sleep -Seconds 3
-    $flmInstallDir = Find-FLMInstallDir
 
-    if (-not $flmInstallDir) {
-        Write-Fail 'Could not locate FLM install directory after installation.'
-        Write-Host "`n    Please enter the install path manually and re-run the script." -ForegroundColor Yellow
+    if (-not (Test-Path $lmgrdExe)) {
+        Write-Fail 'Could not locate lmgrd.exe at expected path after installation.'
+        Write-Host "`n    Expected: $lmgrdExe" -ForegroundColor Yellow
+        Write-Host "    Please install manually from: $FLM_DOWNLOAD_URL" -ForegroundColor Yellow
         Read-Host "`nPress Enter to exit"
         try { Stop-Transcript | Out-Null } catch {}
         exit 1
     }
 
-    Write-OK "FLM installed at: $flmInstallDir"
+    $vi = (Get-Item $lmgrdExe -ErrorAction SilentlyContinue).VersionInfo
+    $installedVersion = "$($vi.FileMajorPart).$($vi.FileMinorPart).$($vi.FileBuildPart).$($vi.FilePrivatePart)"
+    if ($installedVersion -ne $FLM_REQUIRED_VERSION) {
+        Write-Fail "FLM version mismatch after installation."
+        Write-Host "    Required : $FLM_REQUIRED_VERSION" -ForegroundColor Yellow
+        Write-Host "    Installed: $installedVersion" -ForegroundColor Yellow
+        Write-Host "    Please contact TechSoft3D support: spinfiresupport@techsoft3d.com" -ForegroundColor Yellow
+        Read-Host "`nPress Enter to exit"
+        try { Stop-Transcript | Out-Null } catch {}
+        exit 1
+    }
+
+    Write-OK "FLM v$FLM_REQUIRED_VERSION installed at: $flmInstallDir"
 }
 
-$lmgrdExe     = Join-Path $flmInstallDir $FLM_LMGRD
-$spinfiredExe = Join-Path $flmInstallDir $FLM_VENDOR_DAEMON
-
-if (-not (Test-Path $lmgrdExe)) {
-    Write-Fail "lmgrd.exe not found at: $lmgrdExe"
-    try { Stop-Transcript | Out-Null } catch {}
-    exit 1
-}
 
 # -- STEP 3: LOCATE LICENSE FILES ----------------------------------------------
 Write-Step "Locating license files ($FLM_DATA_FILE required, $FLM_LICENSE_FILE optional)..."
@@ -229,47 +212,29 @@ Write-Step "Locating license files ($FLM_DATA_FILE required, $FLM_LICENSE_FILE o
 $licSourceFile = $null
 $datSourceFile = $null
 
-# Auto-detect in the same folder as this script
-$autoLic = Join-Path $PSScriptRoot $FLM_LICENSE_FILE
+# License files must be in the same folder as this script
 $autoDat = Join-Path $PSScriptRoot $FLM_DATA_FILE
+$autoLic = Join-Path $PSScriptRoot $FLM_LICENSE_FILE
 
 if (Test-Path $autoDat) {
-    $foundMsg = "    Found $FLM_DATA_FILE in the setup folder:`n      $autoDat"
-    if (Test-Path $autoLic) { $foundMsg += "`n      $autoLic (also found)" }
-    Write-Host "`n$foundMsg" -ForegroundColor White
-    $answer = Read-Host "`n    Use these files? (Y/N) [default: Y]"
-    if ($answer -eq '' -or $answer -match '^[Yy]') {
-        $datSourceFile = $autoDat
-        if (Test-Path $autoLic) { $licSourceFile = $autoLic }
+    $datSourceFile = $autoDat
+    Write-OK "Found $FLM_DATA_FILE in setup folder."
+    if (Test-Path $autoLic) {
+        $licSourceFile = $autoLic
+        Write-OK "Found $FLM_LICENSE_FILE in setup folder."
+    } else {
+        Write-Warn "$FLM_LICENSE_FILE not found - it will be skipped (not required for the license server)."
     }
-}
-
-# Manual selection loop - only sfpflv2.dat is required
-while (-not $datSourceFile) {
+} else {
+    Write-Fail "$FLM_DATA_FILE not found in the setup folder."
     Write-Host ''
-    $userInput = Read-Host "    Enter the FOLDER PATH containing $FLM_DATA_FILE`n    (press Enter to use the setup folder)"
-
-    if ([string]::IsNullOrWhiteSpace($userInput)) {
-        $searchDir = $PSScriptRoot
-    } else {
-        $searchDir = $userInput.Trim().Trim('"')
-    }
-
-    $tryDat = Join-Path $searchDir $FLM_DATA_FILE
-    $tryLic = Join-Path $searchDir $FLM_LICENSE_FILE
-
-    if (-not (Test-Path $tryDat)) {
-        Write-Warn "$FLM_DATA_FILE not found in '$searchDir'. Please try again."
-        continue
-    }
-
-    $datSourceFile = $tryDat
-    if (Test-Path $tryLic) {
-        $licSourceFile = $tryLic
-        Write-OK "Found $FLM_LICENSE_FILE as well."
-    } else {
-        Write-Warn "$FLM_LICENSE_FILE not found in '$searchDir' - it will be skipped (not required for the server)."
-    }
+    Write-Host "    Please place $FLM_DATA_FILE (and optionally $FLM_LICENSE_FILE)" -ForegroundColor Yellow
+    Write-Host "    in the same folder as this script:" -ForegroundColor Yellow
+    Write-Host "      $PSScriptRoot" -ForegroundColor Yellow
+    Write-Host "    Then re-run Setup." -ForegroundColor Yellow
+    Read-Host "`nPress Enter to exit"
+    try { Stop-Transcript | Out-Null } catch {}
+    exit 1
 }
 
 # Validate sfpflv2.dat content (this is the file with the SERVER line)

@@ -1,4 +1,11 @@
 # SpinFire Insight — Floating License Manager Setup
+## ⚠️ For SpinFire Insight 2026.1.0 and Later Only
+
+> **This setup is NOT backward compatible.**
+> It installs Floating License Manager **v11.19.8.0**, which is required for **SpinFire Insight 2026.1.0+**.
+> If you are running an earlier version of SpinFire Insight, do **not** use this installer — it will not work with your version. Contact [spinfiresupport@techsoft3d.com](mailto:spinfiresupport@techsoft3d.com) for the appropriate license manager for your version.
+
+---
 
 ## What This Does
 
@@ -45,7 +52,7 @@ Double-click **`Run-Setup.bat`** and approve the Administrator (UAC) prompt when
 The script walks you through the following automatically:
 
 1. Checks whether the Floating License Manager is already installed. If not, downloads and silently installs it.
-2. Looks for your license files in the setup folder automatically. If not found, prompts you to enter a folder path.
+2. Looks for your license files (`sfpflv2.dat` required, `license.al` optional) automatically in the setup folder. If not found, the script exits with instructions to place the files there and re-run.
 3. Validates that the license was issued for this machine by checking the hostname and MAC address in `sfpflv2.dat`. You will be warned (but can continue) if there is a mismatch.
 4. Copies the license files to the FLM install directory.
 5. Registers `lmgrd` as a Windows Service and starts it.
@@ -66,7 +73,7 @@ After setup is complete, navigate to SpinFire Insight on your client machine. Th
 
 **License server fails to start**
 - Check the debug log at:
-  `C:\Program Files\TECHSOFT3D\SpinFire Floating License Server\lmgrd_debug.log`
+  `C:\Program Files\Tech Soft 3D\Floating License Manager\lmgrd_debug.log`
 - Also check the setup log saved to your Desktop.
 
 **Hostname or MAC address mismatch warning**
