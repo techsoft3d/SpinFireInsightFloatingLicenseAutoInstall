@@ -6,7 +6,7 @@
 .DESCRIPTION
     This script:
       1. Downloads and installs the SpinFire Floating License Manager if not already present.
-      2. Prompts for the customer license files (license.al + sfpflv2.dat).
+      2. Locates customer license files (license.al + sfpflv2.dat) from the setup folder.
       3. Copies license files into the FLM install directory.
       4. Registers lmgrd as a Windows Service (auto-start on boot).
       5. Configures Windows Firewall inbound rules for lmgrd.exe and spinfired.exe.
@@ -229,13 +229,12 @@ Write-Step "Locating license files ($FLM_DATA_FILE required, $FLM_LICENSE_FILE o
 $licSourceFile = $null
 $datSourceFile = $null
 
-# Auto-detect in Downloads folder
-$downloadsDir = "$env:USERPROFILE\Downloads"
-$autoLic = Join-Path $downloadsDir $FLM_LICENSE_FILE
-$autoDat = Join-Path $downloadsDir $FLM_DATA_FILE
+# Auto-detect in the same folder as this script
+$autoLic = Join-Path $PSScriptRoot $FLM_LICENSE_FILE
+$autoDat = Join-Path $PSScriptRoot $FLM_DATA_FILE
 
 if (Test-Path $autoDat) {
-    $foundMsg = "    Found $FLM_DATA_FILE in your Downloads folder:`n      $autoDat"
+    $foundMsg = "    Found $FLM_DATA_FILE in the setup folder:`n      $autoDat"
     if (Test-Path $autoLic) { $foundMsg += "`n      $autoLic (also found)" }
     Write-Host "`n$foundMsg" -ForegroundColor White
     $answer = Read-Host "`n    Use these files? (Y/N) [default: Y]"
@@ -248,10 +247,10 @@ if (Test-Path $autoDat) {
 # Manual selection loop - only sfpflv2.dat is required
 while (-not $datSourceFile) {
     Write-Host ''
-    $userInput = Read-Host "    Enter the FOLDER PATH containing $FLM_DATA_FILE`n    (press Enter to use Downloads folder)"
+    $userInput = Read-Host "    Enter the FOLDER PATH containing $FLM_DATA_FILE`n    (press Enter to use the setup folder)"
 
     if ([string]::IsNullOrWhiteSpace($userInput)) {
-        $searchDir = $downloadsDir
+        $searchDir = $PSScriptRoot
     } else {
         $searchDir = $userInput.Trim().Trim('"')
     }

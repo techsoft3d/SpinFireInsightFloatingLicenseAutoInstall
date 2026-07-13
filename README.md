@@ -15,11 +15,11 @@ This script automatically:
 1. Windows 10 / Windows Server 2016 or later (64-bit)
 2. Administrator access on this machine
 3. Internet access *(only needed if the FLM is not yet installed)*
-4. Both license files saved somewhere accessible on this machine:
+4. Both license files copied into this folder:
    - `license.al`
    - `sfpflv2.dat`
 
-   These are typically emailed from TechSoft3D support. The easiest option is to save them to your **Downloads** folder before running.
+   These are typically emailed from TechSoft3D support. Simply copy them into the same folder as `Run-Setup.bat` before running — the script will find them automatically.
 
 ---
 
@@ -45,7 +45,7 @@ Double-click **`Run-Setup.bat`** and approve the Administrator (UAC) prompt when
 The script walks you through the following automatically:
 
 1. Checks whether the Floating License Manager is already installed. If not, downloads and silently installs it.
-2. Asks where your license files are located. Press **Enter** to check your Downloads folder automatically.
+2. Looks for your license files in the setup folder automatically. If not found, prompts you to enter a folder path.
 3. Validates that the license was issued for this machine by checking the hostname and MAC address in `sfpflv2.dat`. You will be warned (but can continue) if there is a mismatch.
 4. Copies the license files to the FLM install directory.
 5. Registers `lmgrd` as a Windows Service and starts it.
