@@ -149,24 +149,22 @@ if (-not $flmAlreadyInstalled) {
     Write-Step 'Installing Floating License Manager (silent)...'
 
     $installed = $false
-    # Try NSIS silent switch first (/S), then MSI-style quiet switches.
-    # Exit code 1602 (ERROR_INSTALL_USEREXIT) indicates an embedded MSI launched
-    # its own UI and was cancelled -- keep trying more aggressive MSI switches.
+    # The FLM installer is an InstallShield bootstrapper ("Setup Launcher Unicode").
+    # InstallShield silent install: /s tells the bootstrapper to run silently;
+    # /v passes arguments directly to the inner MSI (/qn = no UI).
     # NOTE: Do NOT use -Verb RunAs here -- the script is already running elevated
     # (self-elevated at startup). Double-elevation causes "operation canceled" errors.
-    foreach ($switch in @('/S', '/qn', '/quiet /norestart', '/VERYSILENT')) {
-        try {
-            Write-Host "    Trying install switch: $switch" -ForegroundColor DarkGray
-            $proc = Start-Process -FilePath $installerPath -ArgumentList $switch -Wait -PassThru -ErrorAction Stop
-            if ($proc.ExitCode -in @(0, 1, 3010)) {
-                Write-OK "Installer completed (exit code $($proc.ExitCode))."
-                $installed = $true
-                break
-            }
-            Write-Warn "Switch '$switch' returned exit code $($proc.ExitCode). Trying next..."
-        } catch {
-            Write-Warn "Switch '$switch' failed: $($_.Exception.Message). Trying next..."
+    try {
+        Write-Host '    Running silent install (InstallShield /s /v"/qn")...' -ForegroundColor DarkGray
+        $proc = Start-Process -FilePath $installerPath -ArgumentList '/s /v"/qn"' -Wait -PassThru -ErrorAction Stop
+        if ($proc.ExitCode -in @(0, 1, 3010)) {
+            Write-OK "Installer completed (exit code $($proc.ExitCode))."
+            $installed = $true
+        } else {
+            Write-Warn "Installer returned exit code $($proc.ExitCode)."
         }
+    } catch {
+        Write-Warn "Installer failed: $($_.Exception.Message)."
     }
 
     Remove-Item $installerPath -ErrorAction SilentlyContinue

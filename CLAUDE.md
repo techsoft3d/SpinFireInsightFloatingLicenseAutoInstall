@@ -39,7 +39,7 @@ FEATURE <name> spinfired 1.0 <expiry> <seats> SIGN="..."
 - **FLM install path**: `C:\Program Files\Tech Soft 3D\Floating License Manager\`
 - **Vendor daemon**: `spinfired.exe` (not `actifyd.exe` — that was the old version)
 - **lmgrd**: Does **NOT** support `-install_service` flag — use `New-Service` PowerShell cmdlet instead
-- **FLM installer silent switch**: `/S` (NSIS-based installer, exit code 0 on success)
+- **FLM installer silent switch**: `/s /v"/qn"` (InstallShield bootstrapper — `/s` silences the outer launcher, `/v"/qn"` passes no-UI flag to the inner MSI)
 - **FLM download URL**: `https://downloads.spinfire.com/FloatingLicenseServer/SpinFireFloatingLicenseServer.x64.exe`
 
 ## What Has Been Tested and Fixed
