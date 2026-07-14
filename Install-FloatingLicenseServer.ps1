@@ -152,12 +152,12 @@ if (-not $flmAlreadyInstalled) {
     # Try NSIS silent switch first (/S), then MSI-style quiet switches.
     # Exit code 1602 (ERROR_INSTALL_USEREXIT) indicates an embedded MSI launched
     # its own UI and was cancelled -- keep trying more aggressive MSI switches.
-    # -Verb RunAs ensures the installer gets an explicit admin token even when
-    # launched from an already-elevated PowerShell session.
+    # NOTE: Do NOT use -Verb RunAs here -- the script is already running elevated
+    # (self-elevated at startup). Double-elevation causes "operation canceled" errors.
     foreach ($switch in @('/S', '/qn', '/quiet /norestart', '/VERYSILENT')) {
         try {
             Write-Host "    Trying install switch: $switch" -ForegroundColor DarkGray
-            $proc = Start-Process -FilePath $installerPath -ArgumentList $switch -Wait -PassThru -Verb RunAs -ErrorAction Stop
+            $proc = Start-Process -FilePath $installerPath -ArgumentList $switch -Wait -PassThru -ErrorAction Stop
             if ($proc.ExitCode -in @(0, 1, 3010)) {
                 Write-OK "Installer completed (exit code $($proc.ExitCode))."
                 $installed = $true
