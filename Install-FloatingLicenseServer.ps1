@@ -404,18 +404,22 @@ try {
         New-Item -Path $lmtoolsRegBase -Force | Out-Null
     }
     New-Item -Path $lmtoolsRegPath -Force | Out-Null
-    # lmtools reads these specific value names (extracted from lmtools.exe binary):
-    #   lmpath   = path to lmgrd.exe
-    #   License  = path to license file
-    #   debug    = path to debug log
-    #   Services = 1 (use Windows service)
-    #   start    = 1 (start server at power up)
-    Set-ItemProperty -Path $lmtoolsRegPath -Name 'lmpath'   -Value $lmgrdExe
-    Set-ItemProperty -Path $lmtoolsRegPath -Name 'License'  -Value $destDatFile
-    Set-ItemProperty -Path $lmtoolsRegPath -Name 'debug'    -Value $debugLogPath
-    Set-ItemProperty -Path $lmtoolsRegPath -Name 'Services' -Value '1'
-    Set-ItemProperty -Path $lmtoolsRegPath -Name 'start'    -Value '1'
-    # Update the "last active service" pointer
+    # Value names confirmed by capturing what lmtools.exe writes on "Save Service":
+    #   Lmgrd          = path to lmgrd.exe
+    #   License        = path to license file
+    #   LMGRD_LOG_FILE = path to debug log
+    #   Services       = 1 (use Windows service)
+    #   start          = 1 (start server at power up)
+    #   cmdlineparams  = '' (extra lmgrd args)
+    #   Service        = service name pointer
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'Lmgrd'          -Value $lmgrdExe
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'License'         -Value $destDatFile
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'LMGRD_LOG_FILE'  -Value $debugLogPath
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'Services'        -Value '1'
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'start'           -Value '1'
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'cmdlineparams'   -Value ''
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'Service'         -Value $FLM_SERVICE_NAME
+    # Update the "last active service" pointer in the parent key
     Set-ItemProperty -Path $lmtoolsRegBase -Name 'Service' -Value $FLM_SERVICE_NAME
     Write-OK "lmtools registry entry created: $lmtoolsRegPath"
 } catch {
