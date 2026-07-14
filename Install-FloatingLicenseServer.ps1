@@ -404,9 +404,17 @@ try {
         New-Item -Path $lmtoolsRegBase -Force | Out-Null
     }
     New-Item -Path $lmtoolsRegPath -Force | Out-Null
-    Set-ItemProperty -Path $lmtoolsRegPath -Name 'lmgrd_path'   -Value $lmgrdExe
-    Set-ItemProperty -Path $lmtoolsRegPath -Name 'license_file' -Value $destDatFile
-    Set-ItemProperty -Path $lmtoolsRegPath -Name 'lmgrd_log'    -Value $debugLogPath
+    # lmtools reads these specific value names (extracted from lmtools.exe binary):
+    #   lmpath   = path to lmgrd.exe
+    #   License  = path to license file
+    #   debug    = path to debug log
+    #   Services = 1 (use Windows service)
+    #   start    = 1 (start server at power up)
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'lmpath'   -Value $lmgrdExe
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'License'  -Value $destDatFile
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'debug'    -Value $debugLogPath
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'Services' -Value '1'
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'start'    -Value '1'
     # Update the "last active service" pointer
     Set-ItemProperty -Path $lmtoolsRegBase -Name 'Service' -Value $FLM_SERVICE_NAME
     Write-OK "lmtools registry entry created: $lmtoolsRegPath"
