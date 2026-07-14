@@ -93,6 +93,47 @@ Write-Host '  ========================================================' -Foregro
 Write-Host "  Setup log will be saved to: $logFile" -ForegroundColor DarkGray
 Write-Host ''
 
+# -- PRE-FLIGHT: CHECK FOR CONFLICTING FLEXLM VERSIONS ------------------------
+# If another application has already registered a FlexLM service on this machine
+# using a DIFFERENT version of lmgrd, we must stop here before making any changes.
+# Mixing FlexLM versions on the same machine is unsupported and can break both
+# applications. The user must uninstall the conflicting version first.
+$lmtoolsRegBase = 'HKLM:\SOFTWARE\FLEXlm License Manager'
+$existingOtherServices = Get-ChildItem $lmtoolsRegBase -ErrorAction SilentlyContinue |
+    Where-Object { $_.PSChildName -ne $FLM_SERVICE_NAME }
+
+if ($existingOtherServices) {
+    foreach ($svc in $existingOtherServices) {
+        $svcProps = Get-ItemProperty $svc.PSPath -ErrorAction SilentlyContinue
+        $svcLmgrd = $svcProps.Lmgrd
+        if ($svcLmgrd -and (Test-Path $svcLmgrd)) {
+            $vi  = (Get-Item $svcLmgrd -ErrorAction SilentlyContinue).VersionInfo
+            $ver = "$($vi.FileMajorPart).$($vi.FileMinorPart).$($vi.FileBuildPart).$($vi.FilePrivatePart)"
+            if ($ver -ne $FLM_REQUIRED_VERSION) {
+                Write-Host ''
+                Write-Fail "Conflicting FlexLM installation detected - no changes have been made."
+                Write-Host ''
+                Write-Host "    Service  : $($svc.PSChildName)" -ForegroundColor Yellow
+                Write-Host "    lmgrd    : $svcLmgrd" -ForegroundColor Yellow
+                Write-Host "    Version  : $ver" -ForegroundColor Yellow
+                Write-Host "    Required : $FLM_REQUIRED_VERSION" -ForegroundColor Yellow
+                Write-Host ''
+                Write-Host '    SpinFire Insight requires FlexLM v{0}.' -f $FLM_REQUIRED_VERSION -ForegroundColor Yellow
+                Write-Host '    Another application on this machine is using a different version.' -ForegroundColor Yellow
+                Write-Host ''
+                Write-Host '    To proceed:' -ForegroundColor White
+                Write-Host "      1. Uninstall the conflicting FlexLM / license server for '$($svc.PSChildName)'." -ForegroundColor White
+                Write-Host '      2. Re-run this setup script - it will perform a clean installation.' -ForegroundColor White
+                Write-Host ''
+                Write-Host '    For assistance: spinfiresupport@techsoft3d.com' -ForegroundColor Yellow
+                Read-Host "`nPress Enter to exit"
+                try { Stop-Transcript | Out-Null } catch {}
+                exit 1
+            }
+        }
+    }
+}
+
 # -- STEP 1: DETECT EXISTING FLM INSTALLATION ----------------------------------
 Write-Step 'Checking for existing Floating License Manager installation...'
 
@@ -395,23 +436,26 @@ try {
 # lmtools.exe reads services from HKLM\SOFTWARE\FLEXlm License Manager\<name>
 # The Windows Service registration above is separate - without this, lmtools
 # shows no configuration even though the server runs correctly.
+# The registry key is SHARED across all FlexLM applications - we only touch
+# our own subkey and leave every other service's subkey untouched.
 Write-Step 'Registering service in lmtools (FLEXlm registry)...'
 
-$lmtoolsRegBase = 'HKLM:\SOFTWARE\FLEXlm License Manager'
+# $lmtoolsRegBase already set at top of script (pre-flight check)
 $lmtoolsRegPath = "$lmtoolsRegBase\$FLM_SERVICE_NAME"
+
 try {
     if (-not (Test-Path $lmtoolsRegBase)) {
         New-Item -Path $lmtoolsRegBase -Force | Out-Null
     }
     New-Item -Path $lmtoolsRegPath -Force | Out-Null
-    # Value names confirmed by capturing what lmtools.exe writes on "Save Service":
+    # Value names confirmed by capturing what lmtools v11.19.8.0 writes on "Save Service":
     #   Lmgrd          = path to lmgrd.exe
     #   License        = path to license file
     #   LMGRD_LOG_FILE = path to debug log
     #   Services       = 1 (use Windows service)
     #   start          = 1 (start server at power up)
     #   cmdlineparams  = '' (extra lmgrd args)
-    #   Service        = service name pointer
+    #   Service        = service name pointer (within subkey)
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'Lmgrd'          -Value $lmgrdExe
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'License'         -Value $destDatFile
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'LMGRD_LOG_FILE'  -Value $debugLogPath
@@ -419,10 +463,8 @@ try {
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'start'           -Value '1'
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'cmdlineparams'   -Value ''
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'Service'         -Value $FLM_SERVICE_NAME
-    # Update the "last active service" pointer in the parent key only if it
-    # isn't already pointing at another application's service - we don't want
-    # to silently change the default selection for users who have another
-    # FlexLM server (e.g. CATIA, SolidWorks) already configured in lmtools.
+    # Only update the parent "last active service" pointer if nothing else owns it,
+    # so we don't change another application's default selection in lmtools.
     $existingPointer = (Get-ItemProperty -Path $lmtoolsRegBase -Name 'Service' -ErrorAction SilentlyContinue).Service
     if (-not $existingPointer -or $existingPointer -eq $FLM_SERVICE_NAME) {
         Set-ItemProperty -Path $lmtoolsRegBase -Name 'Service' -Value $FLM_SERVICE_NAME
