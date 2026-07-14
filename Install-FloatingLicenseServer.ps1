@@ -419,8 +419,14 @@ try {
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'start'           -Value '1'
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'cmdlineparams'   -Value ''
     Set-ItemProperty -Path $lmtoolsRegPath -Name 'Service'         -Value $FLM_SERVICE_NAME
-    # Update the "last active service" pointer in the parent key
-    Set-ItemProperty -Path $lmtoolsRegBase -Name 'Service' -Value $FLM_SERVICE_NAME
+    # Update the "last active service" pointer in the parent key only if it
+    # isn't already pointing at another application's service - we don't want
+    # to silently change the default selection for users who have another
+    # FlexLM server (e.g. CATIA, SolidWorks) already configured in lmtools.
+    $existingPointer = (Get-ItemProperty -Path $lmtoolsRegBase -Name 'Service' -ErrorAction SilentlyContinue).Service
+    if (-not $existingPointer -or $existingPointer -eq $FLM_SERVICE_NAME) {
+        Set-ItemProperty -Path $lmtoolsRegBase -Name 'Service' -Value $FLM_SERVICE_NAME
+    }
     Write-OK "lmtools registry entry created: $lmtoolsRegPath"
 } catch {
     Write-Warn "Could not write lmtools registry entry: $($_.Exception.Message)"
@@ -429,6 +435,16 @@ try {
 
 # -- STEP 7: START THE SERVICE -------------------------------------------------
 Write-Step "Starting service '$FLM_SERVICE_NAME'..."
+
+# Warn if another process is already holding port 27000 (another FlexLM server).
+# lmgrd will fail silently if the port is taken.
+$portInUse = netstat -ano 2>$null | Select-String ":$FLM_PORT\s"
+if ($portInUse) {
+    Write-Warn "Port $FLM_PORT is already in use by another process."
+    Write-Host "    Another FlexLM license server may be running on this machine." -ForegroundColor Yellow
+    Write-Host "    If lmgrd fails to start, check for port conflicts and ensure" -ForegroundColor Yellow
+    Write-Host "    each license server uses a unique port." -ForegroundColor Yellow
+}
 
 # Only kill orphaned processes if the service is not already running.
 # If it IS running (re-run scenario), killing would disrupt active license checkouts.
