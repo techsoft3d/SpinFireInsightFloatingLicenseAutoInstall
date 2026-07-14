@@ -391,6 +391,30 @@ try {
     }
 }
 
+# -- STEP 6b: REGISTER SERVICE IN LMTOOLS (FLEXlm registry) -------------------
+# lmtools.exe reads services from HKLM\SOFTWARE\FLEXlm License Manager\<name>
+# The Windows Service registration above is separate - without this, lmtools
+# shows no configuration even though the server runs correctly.
+Write-Step 'Registering service in lmtools (FLEXlm registry)...'
+
+$lmtoolsRegBase = 'HKLM:\SOFTWARE\FLEXlm License Manager'
+$lmtoolsRegPath = "$lmtoolsRegBase\$FLM_SERVICE_NAME"
+try {
+    if (-not (Test-Path $lmtoolsRegBase)) {
+        New-Item -Path $lmtoolsRegBase -Force | Out-Null
+    }
+    New-Item -Path $lmtoolsRegPath -Force | Out-Null
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'lmgrd_path'   -Value $lmgrdExe
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'license_file' -Value $destDatFile
+    Set-ItemProperty -Path $lmtoolsRegPath -Name 'lmgrd_log'    -Value $debugLogPath
+    # Update the "last active service" pointer
+    Set-ItemProperty -Path $lmtoolsRegBase -Name 'Service' -Value $FLM_SERVICE_NAME
+    Write-OK "lmtools registry entry created: $lmtoolsRegPath"
+} catch {
+    Write-Warn "Could not write lmtools registry entry: $($_.Exception.Message)"
+    Write-Warn "lmtools.exe will not show the service automatically - configure it manually."
+}
+
 # -- STEP 7: START THE SERVICE -------------------------------------------------
 Write-Step "Starting service '$FLM_SERVICE_NAME'..."
 
